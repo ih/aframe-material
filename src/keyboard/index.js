@@ -11,6 +11,7 @@ AFRAME.registerComponent('keyboard', {
   },
   currentInput: null,
   init: function () {
+    console.log("HOWDY Doody");
     let that = this;
 
     // SFX

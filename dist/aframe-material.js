@@ -64,13 +64,13 @@
 	  __webpack_require__(3);
 	  //require("./alert"); @TODO ;)
 	  __webpack_require__(5);
-	  __webpack_require__(13);
 	  __webpack_require__(14);
-	  __webpack_require__(17);
+	  __webpack_require__(15);
 	  __webpack_require__(18);
-	  __webpack_require__(21);
-	  __webpack_require__(24);
-	  __webpack_require__(27);
+	  __webpack_require__(19);
+	  __webpack_require__(22);
+	  __webpack_require__(25);
+	  __webpack_require__(28);
 	})();
 
 /***/ }),
@@ -215,19 +215,20 @@
 	'use strict';
 	
 	var Utils = __webpack_require__(6);
-	var Assets = __webpack_require__(7);
-	var Draw = __webpack_require__(8);
+	var Draw = __webpack_require__(7);
 	var Behaviors = __webpack_require__(11);
 	var SFX = __webpack_require__(12);
+	var Event = __webpack_require__(4);
 	
 	AFRAME.registerComponent('keyboard', {
 	  schema: {
-	    isOpen: { type: "boolean", default: false }
+	    isOpen: { type: "boolean", default: false },
+	    physicalKeyboard: { type: "boolean", default: false }
 	  },
 	  currentInput: null,
 	  init: function init() {
-	    // Assets
-	    Utils.preloadAssets(Assets);
+	    console.log("HOWDY Doody");
+	    var that = this;
 	
 	    // SFX
 	    SFX.init(this.el);
@@ -235,13 +236,16 @@
 	    // Draw
 	    Draw.init(this.el);
 	
+	    // Init keyboard UI
 	    var numericalUI = Draw.numericalUI(),
 	        mainUI = Draw.mainUI(),
 	        actionsUI = Draw.actionsUI();
 	
+	    // Create layout
 	    this.el.alphabeticalLayout = Draw.alphabeticalLayout();
 	    this.el.symbolsLayout = Draw.symbolsLayout();
 	
+	    // Append layouts to UI
 	    numericalUI.appendChild(Draw.numericalLayout());
 	    mainUI.appendChild(this.el.alphabeticalLayout);
 	    actionsUI.appendChild(Draw.actionsLayout());
@@ -267,39 +271,20 @@
 	      Behaviors.destroyKeyboard(that.el);
 	    };
 	
+	    // Set default value
 	    this.el.setAttribute("scale", "2 2 2");
 	    this.el.setAttribute("rotation", "-20 0 0");
 	    this.el.setAttribute("position", "-1.5 -0.3 -2");
 	
-	    var that = this;
-	    this.el.addEventListener('input', function (e) {
-	      if (that.currentInput) {
-	        that.currentInput.appendString(e.detail);
-	      }
-	    });
-	    this.el.addEventListener('backspace', function (e) {
-	      if (that.currentInput) {
-	        that.currentInput.deleteLast();
-	      }
-	    });
-	    this.el.addEventListener('dismiss', function (e) {
-	      if (that.currentInput) {
-	        that.currentInput.blur();
-	      }
-	    });
-	    document.body.addEventListener('didfocusinput', function (e) {
-	      if (that.currentInput) {
-	        that.currentInput.blur(true);
-	      }
-	      that.currentInput = e.detail;
-	      if (!that.el.isOpen) {
-	        Behaviors.openKeyboard(that.el);
-	      }
-	    });
-	    document.body.addEventListener('didblurinput', function (e) {
-	      that.currentInput = null;
-	      Behaviors.dismissKeyboard(that.el);
-	    });
+	    // Register keyboard events
+	    this.el.addEventListener('input', this.inputEvent.bind(this));
+	    this.el.addEventListener('backspace', this.backspaceEvent.bind(this));
+	    this.el.addEventListener('dismiss', this.dismissEvent.bind(this));
+	
+	    // Register global events
+	    document.addEventListener('keydown', this.keydownEvent.bind(this));
+	    document.body.addEventListener('didfocusinput', this.didFocusInputEvent.bind(this));
+	    document.body.addEventListener('didblurinput', this.didBlurInputEvent.bind(this));
 	  },
 	  update: function update() {
 	    if (this.data.isOpen) {
@@ -309,9 +294,73 @@
 	    }
 	  },
 	  tick: function tick() {},
-	  remove: function remove() {},
+	  remove: function remove() {
+	    this.el.removeEventListener('input', this.inputEvent.bind(this));
+	    this.el.removeEventListener('backspace', this.backspaceEvent.bind(this));
+	    this.el.removeEventListener('dismiss', this.dismissEvent.bind(this));
+	
+	    document.removeEventListener('keydown', this.keydownEvent.bind(this));
+	    document.body.removeEventListener('didfocusinput', this.didFocusInputEvent.bind(this));
+	    document.body.removeEventListener('didblurinput', this.didBlurInputEvent.bind(this));
+	  },
 	  pause: function pause() {},
-	  play: function play() {}
+	  play: function play() {},
+	
+	  // Fired on keyboard key press
+	  inputEvent: function inputEvent(e) {
+	    if (this.currentInput) {
+	      this.currentInput.appendString(e.detail);
+	    }
+	  },
+	
+	  // Fired on backspace key press
+	  backspaceEvent: function backspaceEvent(e) {
+	    if (this.currentInput) {
+	      this.currentInput.deleteLast();
+	    }
+	  },
+	
+	  dismissEvent: function dismissEvent(e) {
+	    if (this.currentInput) {
+	      this.currentInput.blur();
+	    }
+	  },
+	
+	  // physical keyboard event
+	  keydownEvent: function keydownEvent(e) {
+	    if (this.currentInput && this.data.physicalKeyboard) {
+	      e.preventDefault();
+	      e.stopPropagation();
+	
+	      if (e.key === 'Enter') {
+	        Event.emit(Behaviors.el, 'input', '\n');
+	        Event.emit(Behaviors.el, 'enter', '\n');
+	      } else if (e.key === 'Backspace') {
+	        Event.emit(Behaviors.el, 'backspace');
+	      } else if (e.key === 'Escape') {
+	        Event.emit(Behaviors.el, 'dismiss');
+	      } else if (e.key.length < 2) {
+	        Event.emit(Behaviors.el, 'input', e.key);
+	      }
+	    }
+	  },
+	
+	  // Fired when an input has been selected
+	  didFocusInputEvent: function didFocusInputEvent(e) {
+	    if (this.currentInput) {
+	      this.currentInput.blur(true);
+	    }
+	    this.currentInput = e.detail;
+	    if (!this.el.isOpen) {
+	      Behaviors.openKeyboard(this.el);
+	    }
+	  },
+	
+	  // Fired when an input has been deselected
+	  didBlurInputEvent: function didBlurInputEvent(e) {
+	    this.currentInput = null;
+	    Behaviors.dismissKeyboard(this.el);
+	  }
 	});
 	
 	AFRAME.registerPrimitive('a-keyboard', {
@@ -319,7 +368,8 @@
 	    keyboard: {}
 	  },
 	  mappings: {
-	    'is-open': 'keyboard.isOpen'
+	    'is-open': 'keyboard.isOpen',
+	    'physical-keyboard': 'keyboard.physicalKeyboard'
 	  }
 	});
 
@@ -355,12 +405,13 @@
 	
 	      already_exists = false;
 	
+	      /***** With Edge, assets.children is a HTMLCollection, not an Array! *****/
 	      var _iteratorNormalCompletion2 = true;
 	      var _didIteratorError2 = false;
 	      var _iteratorError2 = undefined;
 	
 	      try {
-	        for (var _iterator2 = assets.children[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+	        for (var _iterator2 = Array.from(assets.children)[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
 	          var stuff = _step2.value;
 	
 	          if (item.id === stuff.id) {
@@ -491,18 +542,11 @@
 
 /***/ }),
 /* 7 */
-/***/ (function(module, exports) {
-
-	'use strict';
-	
-	module.exports = [{ type: 'img', id: 'aframeKeyboardShift', src: AFRAME.ASSETS_PATH + '/images/ShiftIcon.png' }, { type: 'img', id: 'aframeKeyboardShiftActive', src: AFRAME.ASSETS_PATH + '/images/ShiftActiveIcon.png' }, { type: 'img', id: 'aframeKeyboardGlobal', src: AFRAME.ASSETS_PATH + '/images/GlobalIcon.png' }, { type: 'img', id: 'aframeKeyboardBackspace', src: AFRAME.ASSETS_PATH + '/images/BackspaceIcon.png' }, { type: 'img', id: 'aframeKeyboardEnter', src: AFRAME.ASSETS_PATH + '/images/EnterIcon.png' }, { type: 'img', id: 'aframeKeyboardDismiss', src: AFRAME.ASSETS_PATH + '/images/DismissIcon.png' }, { type: 'img', id: 'aframeKeyboardShadow', src: AFRAME.ASSETS_PATH + '/images/KeyShadow.png' }, { type: 'audio', id: 'aframeKeyboardKeyIn', src: AFRAME.ASSETS_PATH + '/sounds/KeyIn.mp3' }, { type: 'audio', id: 'aframeKeyboardKeyDown', src: AFRAME.ASSETS_PATH + '/sounds/KeyDown.mp3' }];
-
-/***/ }),
-/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
+	var Assets = __webpack_require__(8);
 	var Layouts = __webpack_require__(9);
 	var Config = __webpack_require__(10);
 	var Behaviors = __webpack_require__(11);
@@ -747,7 +791,7 @@
 	  el.shadow_el.setAttribute('width', Config.KEY_WIDTH * 1.25);
 	  el.shadow_el.setAttribute('height', Config.KEY_WIDTH * 1.25);
 	  el.shadow_el.setAttribute('position', Config.KEY_WIDTH / 2 + ' ' + Config.KEY_WIDTH / 2 + ' -0.002');
-	  el.shadow_el.setAttribute('src', '#aframeKeyboardShadow');
+	  el.shadow_el.setAttribute('src', Assets.aframeKeyboardShadow);
 	  el.appendChild(el.shadow_el);
 	
 	  // ---------------------------------------------------------------------------
@@ -804,7 +848,7 @@
 	    icon_el.setAttribute('width', '0.032');
 	    icon_el.setAttribute('height', '0.032');
 	    icon_el.setAttribute('position', '0.04 0.04 0.01');
-	    icon_el.setAttribute('src', '#aframeKeyboardShift');
+	    icon_el.setAttribute('src', Assets.aframeKeyboardShift);
 	    el.appendChild(icon_el);
 	    Draw.el.shiftKey = el;
 	  }
@@ -817,7 +861,7 @@
 	      icon_el.setAttribute('width', '0.032');
 	      icon_el.setAttribute('height', '0.032');
 	      icon_el.setAttribute('position', '0.04 0.04 0.01');
-	      icon_el.setAttribute('src', '#aframeKeyboardGlobal');
+	      icon_el.setAttribute('src', Assets.aframeKeyboardGlobal);
 	      el.appendChild(icon_el);
 	    }
 	
@@ -829,7 +873,7 @@
 	        icon_el.setAttribute('width', '0.046');
 	        icon_el.setAttribute('height', '0.046');
 	        icon_el.setAttribute('position', '0.07 0.04 0.01');
-	        icon_el.setAttribute('src', '#aframeKeyboardBackspace');
+	        icon_el.setAttribute('src', Assets.aframeKeyboardBackspace);
 	        el.appendChild(icon_el);
 	      }
 	
@@ -851,7 +895,7 @@
 	          icon_el.setAttribute('width', '0.034');
 	          icon_el.setAttribute('height', '0.034');
 	          icon_el.setAttribute('position', '0.07 0.07 0.011');
-	          icon_el.setAttribute('src', '#aframeKeyboardEnter');
+	          icon_el.setAttribute('src', Assets.aframeKeyboardEnter);
 	          el.appendChild(icon_el);
 	        }
 	
@@ -863,7 +907,7 @@
 	            icon_el.setAttribute('width', '0.046');
 	            icon_el.setAttribute('height', '0.046');
 	            icon_el.setAttribute('position', '0.07 0.04 0.01');
-	            icon_el.setAttribute('src', '#aframeKeyboardDismiss');
+	            icon_el.setAttribute('src', Assets.aframeKeyboardDismiss);
 	            el.appendChild(icon_el);
 	          }
 	
@@ -871,6 +915,24 @@
 	};
 	
 	module.exports = Draw;
+
+/***/ }),
+/* 8 */
+/***/ (function(module, exports) {
+
+	"use strict";
+	
+	module.exports = {
+	  aframeKeyboardShift: AFRAME.ASSETS_PATH + "/images/ShiftIcon.png",
+	  aframeKeyboardShiftActive: AFRAME.ASSETS_PATH + "/images/ShiftActiveIcon.png",
+	  aframeKeyboardGlobal: AFRAME.ASSETS_PATH + "/images/GlobalIcon.png",
+	  aframeKeyboardBackspace: AFRAME.ASSETS_PATH + "/images/BackspaceIcon.png",
+	  aframeKeyboardEnter: AFRAME.ASSETS_PATH + "/images/EnterIcon.png",
+	  aframeKeyboardDismiss: AFRAME.ASSETS_PATH + "/images/DismissIcon.png",
+	  aframeKeyboardShadow: AFRAME.ASSETS_PATH + "/images/KeyShadow.png",
+	  aframeKeyboardKeyIn: AFRAME.ASSETS_PATH + "/sounds/KeyIn.mp3",
+	  aframeKeyboardKeyDown: AFRAME.ASSETS_PATH + "/sounds/KeyDown.mp3"
+	};
 
 /***/ }),
 /* 9 */
@@ -916,6 +978,7 @@
 
 	'use strict';
 	
+	var Assets = __webpack_require__(8);
 	var Config = __webpack_require__(10);
 	var Utils = __webpack_require__(6);
 	var Event = __webpack_require__(4);
@@ -929,7 +992,7 @@
 	
 	Behaviors.showKeyboard = function (el) {
 	  if (el.o_position) {
-	    el.setAttribute("position", el.o_position);
+	    el.object3D.position.copy(el.o_position);
 	  }
 	  el.isOpen = true;
 	  var _iteratorNormalCompletion = true;
@@ -989,7 +1052,10 @@
 	Behaviors.hideKeyboard = function (el) {
 	  var position = el.getAttribute("position");
 	  if (position.x !== -10000) {
-	    el.o_position = position;
+	    if (!el.o_position) {
+	      el.o_position = new THREE.Vector3();
+	    }
+	    el.o_position.copy(position);
 	  }
 	  el.isOpen = false;
 	  el.setAttribute("position", "-10000 -10000 -10000");
@@ -1006,7 +1072,7 @@
 	
 	Behaviors.openKeyboard = function (el) {
 	  if (el.o_position) {
-	    el.setAttribute("position", el.o_position);
+	    el.object3D.position.copy(el.o_position);
 	  }
 	  el.isOpen = true;
 	  el._transitioning = true;
@@ -1155,10 +1221,8 @@
 	  el.addEventListener('click', Behaviors.keyClick);
 	  el.addEventListener('mousedown', Behaviors.keyDown);
 	  el.addEventListener('mouseup', Behaviors.keyOut);
-	  el.addEventListener('mouseleave', Behaviors.keyOut);
-	  el.addEventListener('mouseenter', Behaviors.keyIn);
-	  //el.addEventListener('raycaster-intersected', Behaviors.keyIn );
-	  //el.addEventListener('raycaster-intersected-cleared', Behaviors.keyOut );
+	  el.addEventListener('raycaster-intersected', Behaviors.keyIn);
+	  el.addEventListener('raycaster-intersected-cleared', Behaviors.keyOut);
 	  //triggerdown
 	  // https://aframe.io/docs/0.6.0/components/hand-controls.html
 	};
@@ -1191,6 +1255,7 @@
 	    Event.emit(Behaviors.el, 'backspace');
 	  } else if (type === 'enter') {
 	    Event.emit(Behaviors.el, 'input', '\n');
+	    Event.emit(Behaviors.el, 'enter', '\n');
 	  } else if (type === 'dismiss') {
 	    Event.emit(Behaviors.el, 'dismiss');
 	  }
@@ -1250,9 +1315,9 @@
 	
 	  var icon_el = Behaviors.el.shiftKey.querySelector('[data-type]');
 	  if (Behaviors.isShiftEnabled) {
-	    icon_el.setAttribute('src', '#aframeKeyboardShiftActive');
+	    icon_el.setAttribute('src', Assets.aframeKeyboardShiftActive);
 	  } else {
-	    icon_el.setAttribute('src', '#aframeKeyboardShift');
+	    icon_el.setAttribute('src', Assets.aframeKeyboardShift);
 	  }
 	
 	  var _iteratorNormalCompletion7 = true;
@@ -1316,9 +1381,11 @@
 
 /***/ }),
 /* 12 */
-/***/ (function(module, exports) {
+/***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
+	
+	var Assets = __webpack_require__(13);
 	
 	var SFX = {
 	
@@ -1326,14 +1393,14 @@
 	    var el = document.createElement('a-sound');
 	    el.setAttribute('key', 'aframeKeyboardKeyInSound');
 	    el.setAttribute('sfx', true);
-	    el.setAttribute('src', '#aframeKeyboardKeyIn');
+	    el.setAttribute('src', Assets.aframeKeyboardKeyIn);
 	    el.setAttribute('position', '0 2 5');
 	    parent.appendChild(el);
 	
 	    el = document.createElement('a-sound');
 	    el.setAttribute('key', 'aframeKeyboardKeyDownSound');
 	    el.setAttribute('sfx', true);
-	    el.setAttribute('src', '#aframeKeyboardKeyDown');
+	    el.setAttribute('src', Assets.aframeKeyboardKeyDown);
 	    el.setAttribute('position', '0 2 5');
 	    parent.appendChild(el);
 	  },
@@ -1361,6 +1428,24 @@
 
 /***/ }),
 /* 13 */
+/***/ (function(module, exports) {
+
+	"use strict";
+	
+	module.exports = {
+	  aframeKeyboardShift: AFRAME.ASSETS_PATH + "/images/ShiftIcon.png",
+	  aframeKeyboardShiftActive: AFRAME.ASSETS_PATH + "/images/ShiftActiveIcon.png",
+	  aframeKeyboardGlobal: AFRAME.ASSETS_PATH + "/images/GlobalIcon.png",
+	  aframeKeyboardBackspace: AFRAME.ASSETS_PATH + "/images/BackspaceIcon.png",
+	  aframeKeyboardEnter: AFRAME.ASSETS_PATH + "/images/EnterIcon.png",
+	  aframeKeyboardDismiss: AFRAME.ASSETS_PATH + "/images/DismissIcon.png",
+	  aframeKeyboardShadow: AFRAME.ASSETS_PATH + "/images/KeyShadow.png",
+	  aframeKeyboardKeyIn: AFRAME.ASSETS_PATH + "/sounds/KeyIn.mp3",
+	  aframeKeyboardKeyDown: AFRAME.ASSETS_PATH + "/sounds/KeyDown.mp3"
+	};
+
+/***/ }),
+/* 14 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1697,15 +1782,15 @@
 	});
 
 /***/ }),
-/* 14 */
+/* 15 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
 	var Utils = __webpack_require__(6);
 	var Event = __webpack_require__(4);
-	var Assets = __webpack_require__(15);
-	var SFX = __webpack_require__(16);
+	var Assets = __webpack_require__(16);
+	var SFX = __webpack_require__(17);
 	
 	AFRAME.registerComponent('switch', {
 	  schema: {
@@ -1825,7 +1910,7 @@
 	});
 
 /***/ }),
-/* 15 */
+/* 16 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -1833,7 +1918,7 @@
 	module.exports = [{ type: 'img', id: 'aframeSwitchShadow', src: AFRAME.ASSETS_PATH + '/images/SwitchShadow.png' }, { type: 'audio', id: 'aframeSwitchClick', src: AFRAME.ASSETS_PATH + '/sounds/InputClick.mp3' }, { type: 'audio', id: 'aframeSwitchClickDisabled', src: AFRAME.ASSETS_PATH + '/sounds/ButtonClickDisabled.mp3' }];
 
 /***/ }),
-/* 16 */
+/* 17 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -1878,7 +1963,7 @@
 	module.exports = SFX;
 
 /***/ }),
-/* 17 */
+/* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1904,15 +1989,15 @@
 	});
 
 /***/ }),
-/* 18 */
+/* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
 	var Utils = __webpack_require__(6);
 	var Event = __webpack_require__(4);
-	var Assets = __webpack_require__(19);
-	var SFX = __webpack_require__(20);
+	var Assets = __webpack_require__(20);
+	var SFX = __webpack_require__(21);
 	
 	AFRAME.registerComponent('radio', {
 	  schema: {
@@ -2175,7 +2260,7 @@
 	});
 
 /***/ }),
-/* 19 */
+/* 20 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -2183,7 +2268,7 @@
 	module.exports = [{ type: 'audio', id: 'aframeRadioClick', src: AFRAME.ASSETS_PATH + '/sounds/InputClick.mp3' }, { type: 'audio', id: 'aframeRadioClickDisabled', src: AFRAME.ASSETS_PATH + '/sounds/ButtonClickDisabled.mp3' }];
 
 /***/ }),
-/* 20 */
+/* 21 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -2228,15 +2313,15 @@
 	module.exports = SFX;
 
 /***/ }),
-/* 21 */
+/* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
 	var Utils = __webpack_require__(6);
 	var Event = __webpack_require__(4);
-	var Assets = __webpack_require__(22);
-	var SFX = __webpack_require__(23);
+	var Assets = __webpack_require__(23);
+	var SFX = __webpack_require__(24);
 	
 	AFRAME.registerComponent('checkbox', {
 	  schema: {
@@ -2303,7 +2388,8 @@
 	      if (this.components.checkbox.data.disabled) {
 	        return;
 	      }
-	      this.setAttribute('checked', !this.components.checkbox.data.checked);
+	      this.components.checkbox.data.checked = !this.components.checkbox.data.checked;
+	      this.setAttribute('checked', this.components.checkbox.data.checked);
 	      that.onClick();
 	    });
 	    this.el.addEventListener('mousedown', function () {
@@ -2461,7 +2547,7 @@
 	});
 
 /***/ }),
-/* 22 */
+/* 23 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -2469,7 +2555,7 @@
 	module.exports = [{ type: 'img', id: 'aframeCheckboxMark', src: AFRAME.ASSETS_PATH + '/images/CheckmarkIcon.png' }, { type: 'audio', id: 'aframeCheckboxClick', src: AFRAME.ASSETS_PATH + '/sounds/InputClick.mp3' }, { type: 'audio', id: 'aframeCheckboxClickDisabled', src: AFRAME.ASSETS_PATH + '/sounds/ButtonClickDisabled.mp3' }];
 
 /***/ }),
-/* 23 */
+/* 24 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -2514,15 +2600,15 @@
 	module.exports = SFX;
 
 /***/ }),
-/* 24 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
 	var Utils = __webpack_require__(6);
 	var Event = __webpack_require__(4);
-	var Assets = __webpack_require__(25);
-	var SFX = __webpack_require__(26);
+	var Assets = __webpack_require__(26);
+	var SFX = __webpack_require__(27);
 	
 	AFRAME.registerComponent('button', {
 	  schema: {
@@ -2734,7 +2820,7 @@
 	});
 
 /***/ }),
-/* 25 */
+/* 26 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -2742,7 +2828,7 @@
 	module.exports = [{ type: 'img', id: 'aframeButtonShadow', src: AFRAME.ASSETS_PATH + '/images/ButtonShadow.png' }, { type: 'audio', id: 'aframeButtonClick', src: AFRAME.ASSETS_PATH + '/sounds/ButtonClick.mp3' }, { type: 'audio', id: 'aframeButtonClickDisabled', src: AFRAME.ASSETS_PATH + '/sounds/ButtonClickDisabled.mp3' }];
 
 /***/ }),
-/* 26 */
+/* 27 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -2787,15 +2873,15 @@
 	module.exports = SFX;
 
 /***/ }),
-/* 27 */
+/* 28 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
 	var Utils = __webpack_require__(6);
 	var Event = __webpack_require__(4);
-	var Assets = __webpack_require__(28);
-	var SFX = __webpack_require__(29);
+	var Assets = __webpack_require__(29);
+	var SFX = __webpack_require__(30);
 	
 	AFRAME.registerComponent('toast', {
 	  schema: {
@@ -2967,7 +3053,7 @@
 	});
 
 /***/ }),
-/* 28 */
+/* 29 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -2975,7 +3061,7 @@
 	module.exports = [{ type: 'audio', id: 'aframeToastShow', src: AFRAME.ASSETS_PATH + '/sounds/ToastShow.mp3' }];
 
 /***/ }),
-/* 29 */
+/* 30 */
 /***/ (function(module, exports) {
 
 	'use strict';
